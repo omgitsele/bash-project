@@ -1,0 +1,58 @@
+#!/bin/bash
+
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )/"
+
+inputFile2="${DIR}temp_2.txt"
+tr -d "\t" < $1 > $inputFile2 # Διαγραφη ολων των Tab
+inputFile="${DIR}temp_1.txt"
+awk 'NF' $inputFile2 > $inputFile # Κραταμε μονο τις γραμμες που δεν ειναι κενες
+
+mapfile -t pointsHome < <( awk -F'[:-]' '$3 > $4 {printf "%s:3:%d:%d\n",$1,$3,$4;} $3 < $4 {printf "%s:0:%d:%d\n",$1,$3,$4;} $3 == $4{printf "%s:1:%d:%d\n",$1,$3,$4;}' ${inputFile} )
+mapfile -t pointsAway < <( awk -F'[:-]' '$3 > $4 {printf "%s:0:%d:%d\n",$2,$4,$3;} $3 < $4 {printf "%s:3:%d:%d\n",$2,$4,$3;} $3 == $4{printf "%s:1:%d:%d\n",$2,$4,$3;}' ${inputFile} )
+new=("${pointsHome[@]}" "${pointsAway[@]}")
+length=$(echo "${#new[@]}")
+touch "${DIR}temp.txt"
+rm -rf "${DIR}temp.txt"
+touch "${DIR}temp.txt"
+s=0
+while [[ $s -lt $length ]]; do
+	echo "${new[s]}" >> "${DIR}temp.txt"
+	let s=s+1
+done
+mapfile -t finalStand < <(  awk -F'[:-]' '{ seen[$1]+=$2 } END { for (i in seen) printf "  %s:    %4d\n", i, seen[i] } ' "${DIR}temp.txt" )
+mapfile -t totalGoalsFor < <( awk -F'[:-]' '{ seen[$1]+=$3 } END { for (i in seen) printf "		%d\n", seen[i] } ' "${DIR}temp.txt" )
+mapfile -t totalGoalsAgainst < <( awk -F'[:-]' '{ seen[$1]+=$4 } END { for (i in seen) printf "%d\n", seen[i] } ' "${DIR}temp.txt" )
+length=$(echo "${#finalStand[@]}")
+s=0
+touch "${DIR}temp1.txt"
+rm -rf "${DIR}temp1.txt"
+touch "${DIR}temp1.txt"
+myTemp1=()
+while [[ $s -lt $length ]]; do
+	myTemp1[$s]=$(echo "${finalStand[s]}    ${totalGoalsFor[s]}-${totalGoalsAgainst[s]}")
+	echo "${myTemp1[s]}" >> "${DIR}temp1.txt"
+	let s=s+1
+done
+mapfile -t finalStandings < <( sort -r -n -t':' -k 2n -k 1n "${DIR}temp1.txt" )
+touch "${DIR}temp2.txt"
+rm -rf "${DIR}temp2.txt"
+touch "${DIR}temp2.txt"
+s=0
+while [[ $s -lt $length ]]; do
+	myTemp2[$s]=$(echo "${finalStandings[s]}")
+	echo "${myTemp2[s]}" >> "${DIR}temp2.txt"
+	let s=s+1
+done
+mapfile -t finalStandings < <( awk -F: '{printf ("	%-20s %s\n"),$1,$2}' "${DIR}temp2.txt")
+s=$(echo "$length - 1" | bc -l)
+t=1
+while [[ $s -ge 0 ]]; do
+	echo "${t}.    ${finalStandings[s]}"
+	let s=s-1
+	let t=t+1
+done
+rm -rf "${DIR}temp_1.txt"
+rm -rf "${DIR}temp_2.txt"
+rm -rf "${DIR}temp1.txt"
+rm -rf "${DIR}temp.txt"
+rm -rf "${DIR}temp2.txt"

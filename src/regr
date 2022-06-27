@@ -1,0 +1,98 @@
+#!/bin/bash
+
+while [ "$1" != "" ]; do
+
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )/"
+
+awk 'NF' $1 > "${DIR}temp.txt" 
+inputFile="${DIR}temp.txt"
+
+
+lines_in_file () {
+cat ${inputFile} | wc -l
+}
+
+sum_x () {
+var_x=$1 awk -F: '{x_array+=$1}END{print x_array}' ${inputFile};
+}
+
+sum_y () {
+var_y=$1 awk -F: '{y_array+=$2}END{print y_array}' ${inputFile};
+}
+
+sum_xi_yi () {
+#varxiyi=$1 awk -F: '{for (i=1;i<=NF;i++) sum_xy[i]+=( "$1" * "$2");}; END{for (i in sum) print "for column "i" is " sum[i];}' $1;
+var_xi_yi=$1 awk -F: '{mvar+= $1 * $2}END{print mvar}' ${inputFile};
+}
+
+sum_x2 () {
+var_x2=$1 awk -F: '{v+= $1 * $1}END{print v}' ${inputFile};
+}
+
+num_lines=$( lines_in_file $inputFile )
+
+if [ $num_lines -lt "3" ]; then
+	echo The file $1 has less than 3 lines.
+
+else
+sum_xy=$( sum_xi_yi ${inputFile} )
+#echo "sum_xi_yi is: ${sum_xy}"
+sumx=$( sum_x ${inputFile})
+#echo "sumx is: ${sumx}"
+sumy=$( sum_y ${inputFile})
+#echo "sum_y is: ${sumy}"
+mulxy=$( echo "$sumx * $sumy" | bc -l )
+#echo "mulxy is: ${mulxy}"
+x2=$( sum_x2 ${inputFile} )
+#echo "x^2 is: ${x2}"
+
+numerator_a_1=$( echo "$num_lines * $sum_xy" | bc -l )
+numerator_a_2=${mulxy}
+numerator_a=$( echo "$numerator_a_1 - $numerator_a_2" | bc -l )
+
+denominator_a_1=$( echo "${num_lines} * ${x2}" | bc -l )
+denominator_a_2=$( echo "${sumx} * ${sumx}" | bc -l )
+denominator_a=$( echo "$denominator_a_1 - $denominator_a_2" | bc -l )
+
+if [[ ${denominator_a} != 0 ]]; then
+	a=$( echo "$numerator_a / $denominator_a" | bc -l )
+
+numerator_b_1=${sumy}
+numerator_b_2=$( echo "$a * $sumx" | bc -l )
+numerator_b=$( echo "$numerator_b_1 - $numerator_b_2" | bc -l)
+
+
+#b=$( calc "$numerator_b/$num_lines" )
+b=$( echo "$numerator_b / $num_lines" | bc -l )
+
+mapfile -t err1 < <( awk -F: '{print $1}' ${inputFile} ) 
+mapfile -t err2 < <( awk -F: '{print $2}' ${inputFile} )
+error=0
+t=0
+err=0
+while [ $t -lt $num_lines ]; do
+	err1[t]=$( echo "${err1[t]} * $a" | bc -l )
+	err1[t]=$( echo "${err1[t]} + $b" | bc -l )
+	err1[t]=$( echo "${err2[t]} - ${err1[t]}" | bc -l )
+	err1[t]=$( echo "${err1[t]} * ${err1[t]}" | bc -l )
+	error=$( echo "${error} + ${err1[t]}" | bc -l )
+	let t=t+1
+done
+
+awk -v var_file="$1" -v var_a="$a" -v var_b="$b" -v var_error="$error" 'BEGIN {printf("FILE: %s, a=%.2f b=%.2f c=1 err=%.2f \n",var_file,var_a,var_b,var_error)}'
+
+
+else
+	if [[ $num_lines -ge "3" ]]; then
+			awk -v var_file="$1" 'BEGIN {printf("FILE: %s, a=- b=- c=- err=0 \n",var_file)}'
+	fi
+fi
+
+
+fi
+
+shift
+
+done
+
+rm -rf "${DIR}temp.txt"
